@@ -15,14 +15,19 @@ load_dotenv(ROOT / ".env")
 OUTPUT_DIR = ROOT / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 API_ROOT = "https://api.runpod.ai/v2"
+JOB_EXECUTION_TIMEOUT_MS = 25 * 60 * 1000
+JOB_TTL_MS = 60 * 60 * 1000
+UI_TIMEOUT_SECONDS = 30 * 60
+MAX_REFERENCE_BYTES = 12 * 1024 * 1024
 
 
 def _audio_base64(path: str | None) -> str | None:
     if not path:
         return None
     raw = Path(path).read_bytes()
-    if len(raw) > 20 * 1024 * 1024:
-        raise gr.Error("Reference audio must be 20 MB or smaller")
+    # Runpod's request-size limit includes base64 expansion and the JSON body.
+    if len(raw) > MAX_REFERENCE_BYTES:
+        raise gr.Error("Reference audio must be 12 MB or smaller")
     return base64.b64encode(raw).decode("ascii")
 
 
@@ -56,10 +61,20 @@ def generate(model, text, reference_audio, reference_text, instruction, cfg_scal
         payload.update(temperature=float(temperature), top_k=int(top_k), max_new_tokens=int(max_new_tokens))
 
     progress(0.02, desc="Submitting job")
-    submitted = _runpod_request("POST", f"{API_ROOT}/{endpoint}/run", json={"input": payload})
+    submitted = _runpod_request(
+        "POST",
+        f"{API_ROOT}/{endpoint}/run",
+        json={
+            "input": payload,
+            "policy": {
+                "executionTimeout": JOB_EXECUTION_TIMEOUT_MS,
+                "ttl": JOB_TTL_MS,
+            },
+        },
+    )
     job_id = submitted["id"]
     started = time.monotonic()
-    timeout = 30 * 60
+    timeout = UI_TIMEOUT_SECONDS
     while time.monotonic() - started < timeout:
         status = _runpod_request("GET", f"{API_ROOT}/{endpoint}/status/{job_id}")
         state = status.get("status", "UNKNOWN")
@@ -107,4 +122,3 @@ with gr.Blocks(title="Serverless TTS Lab") as demo:
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=2).launch(server_name="127.0.0.1", server_port=7860)
-
