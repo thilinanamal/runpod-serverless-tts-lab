@@ -38,4 +38,3 @@ Open http://127.0.0.1:7860. The UI submits asynchronous jobs, polls until comple
 ## Worker input
 
 Common fields are `text`, optional `reference_audio` (raw base64 or a data URL), `reference_text`, and generation settings. See `examples/` for complete payloads.
-
