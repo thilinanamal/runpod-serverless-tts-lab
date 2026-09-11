@@ -1,0 +1,9 @@
+{
+  "input": {
+    "text": "<|emotion:amusement|><|prosody:expressive_high|>That was unexpected. <|sfx:laughter|>Haha, let us try it again.",
+    "temperature": 0.8,
+    "top_k": 50,
+    "max_new_tokens": 2048,
+    "seed": 42
+  }
+}

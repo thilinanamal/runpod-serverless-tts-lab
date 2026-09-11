@@ -1,0 +1,9 @@
+{
+  "input": {
+    "text": "(sigh) It is good to hear your voice again after all this time.",
+    "instruction": "A warm, thoughtful voice with a calm, reflective delivery.",
+    "cfg_scale": 4.0,
+    "seed": 42
+  }
+}
+
