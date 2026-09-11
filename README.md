@@ -25,12 +25,10 @@ The packages include the weights in the images to avoid paying to download them 
 ## Local UI
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r ui/requirements.txt
 cp .env.example .env
 # Fill RUNPOD_API_KEY and both endpoint IDs.
-python ui/app.py
+chmod +x run-ui.sh
+./run-ui.sh
 ```
 
 Open http://127.0.0.1:7860. The UI submits asynchronous jobs, polls until completion, and creates a local WAV file under `outputs/`. Gradio also presents a download button.
