@@ -4,6 +4,7 @@ import base64
 import math
 import os
 import random
+import sys
 import tempfile
 from pathlib import Path
 
@@ -14,9 +15,10 @@ import torch
 from voxcpm import VoxCPM
 
 MODEL_PATH = os.environ.get("VOXCPM_MODEL_PATH", "/models/voxcpm2")
-# torch.compile costs several minutes on every cold start and nothing is cached
-# between scale-to-zero cycles, so optimization is opt-in.
-OPTIMIZE = os.environ.get("VOXCPM_OPTIMIZE", "0").lower() in {"1", "true", "yes"}
+# torch.compile and its warmup pass run during container init, which Runpod does
+# not bill, so the cost lands on cold-start latency rather than on every job. Set
+# VOXCPM_OPTIMIZE=0 to trade generation speed back for a shorter cold start.
+OPTIMIZE = os.environ.get("VOXCPM_OPTIMIZE", "1").lower() in {"1", "true", "yes"}
 MAX_TEXT_CHARS = int(os.environ.get("MAX_TEXT_CHARS", "12000"))
 MAX_REFERENCE_BYTES = int(os.environ.get("MAX_REFERENCE_BYTES", str(20 * 1024 * 1024)))
 
@@ -56,9 +58,21 @@ def _load():
     global _model
     if _model is None:
         # The repository config pins dtype bfloat16; VoxCPM keeps it on CUDA.
-        _model = VoxCPM.from_pretrained(
-            MODEL_PATH, load_denoiser=False, optimize=OPTIMIZE, device="cuda"
-        )
+        try:
+            _model = VoxCPM.from_pretrained(
+                MODEL_PATH, load_denoiser=False, optimize=OPTIMIZE, device="cuda"
+            )
+        except Exception as error:
+            if not OPTIMIZE:
+                raise
+            # torch.compile warms up during load, so anything it cannot do on this
+            # host — a missing C compiler for Triton, an unsupported GPU — would
+            # otherwise take the whole container down at startup. Slower is better
+            # than dead.
+            print(f"torch.compile unavailable ({error}); loading uncompiled", file=sys.stderr)
+            _model = VoxCPM.from_pretrained(
+                MODEL_PATH, load_denoiser=False, optimize=False, device="cuda"
+            )
     return _model
 
 
@@ -125,5 +139,12 @@ def handler(job):
         "model": "openbmb/VoxCPM2",
     }
 
+
+# Load before accepting jobs. Lazy-loading put ~11s of weight loading inside the
+# first job's billed execution time, which made a 2.9s generation report as 15.1s
+# and put the measured RTF 7x above what the model actually does. Runpod does not
+# bill container init, so this moves the cost to where it belongs and keeps every
+# job's execution time to generation alone.
+_load()
 
 runpod.serverless.start({"handler": handler})

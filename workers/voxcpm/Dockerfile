@@ -8,10 +8,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TOKENIZERS_PARALLELISM=false \
     HF_HOME=/models/huggingface \
     VOXCPM_MODEL_PATH=/models/voxcpm2 \
-    VOXCPM_OPTIMIZE=0
+    VOXCPM_OPTIMIZE=1
 
+# build-essential is required at runtime, not just build time: with
+# VOXCPM_OPTIMIZE=1, Triton JIT-compiles its kernels on the GPU it lands on and
+# shells out to a C compiler to do it. The -runtime base ships none, so
+# torch.compile dies with "Failed to find C compiler" the moment it warms up.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates ffmpeg libsndfile1 \
+      build-essential ca-certificates ffmpeg libsndfile1 \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --upgrade pip \
     && pip install "voxcpm==${VOXCPM_VERSION}" "runpod>=1.7,<2" "huggingface-hub>=0.34"
