@@ -48,8 +48,10 @@ to get one:
 
 **A. Let Runpod build it (no GHCR, no Actions).** In the Runpod console:
 Serverless → New Endpoint → *GitHub repo* → this repository → branch → set the
-Dockerfile path (e.g. `workers/voxcpm/Dockerfile`) and the build context to the
-repository root. Runpod builds and pushes to
+Dockerfile path to `workers/voxcpm/Dockerfile`. That builder always uses the
+repository root as the build context, which is why this worker's Dockerfile copies
+`workers/voxcpm/handler.py` by full path and the build workflow gives it the same
+root context. Runpod builds and pushes to
 `registry.runpod.net/<user>-<repo>-<branch>-<dockerfile-path>:<short-sha>` and
 rebuilds on every push to that branch. Note the `voxcpm` Dockerfile is deliberately
 free of BuildKit secret mounts so this path works; `breeze` and `higgs` use

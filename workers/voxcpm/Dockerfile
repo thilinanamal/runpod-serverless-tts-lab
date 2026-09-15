@@ -22,5 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2', local_dir='/models/voxcpm2')"
 
 WORKDIR /opt/worker
-COPY handler.py .
+# Path is relative to the repository root: Runpod's GitHub builder always builds
+# with the repo as the context, and the workflow matches it for this worker.
+COPY workers/voxcpm/handler.py .
 CMD ["python", "handler.py"]

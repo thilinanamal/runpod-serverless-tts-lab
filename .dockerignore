@@ -1,0 +1,11 @@
+# The voxcpm worker builds from the repository root, so keep everything that is
+# not the worker source out of the build context.
+.git
+.github
+.venv
+outputs
+examples
+ui
+*.mp3
+*.wav
+.env

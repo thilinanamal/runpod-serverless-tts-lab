@@ -17,7 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        worker: [breeze, higgs, voxcpm]
+        # voxcpm builds from the repository root so the identical Dockerfile also
+        # works in Runpod's console GitHub builder, which sets that context itself.
+        include:
+          - worker: breeze
+            context: workers/breeze
+          - worker: higgs
+            context: workers/higgs
+          - worker: voxcpm
+            context: .
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +37,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: workers/${{ matrix.worker }}
+          context: ${{ matrix.context }}
+          file: workers/${{ matrix.worker }}/Dockerfile
           platforms: linux/amd64
           push: true
           tags: |
