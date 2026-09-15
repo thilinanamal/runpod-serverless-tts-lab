@@ -4,6 +4,7 @@ import base64
 import math
 import os
 import random
+import sys
 import tempfile
 from pathlib import Path
 
@@ -57,9 +58,21 @@ def _load():
     global _model
     if _model is None:
         # The repository config pins dtype bfloat16; VoxCPM keeps it on CUDA.
-        _model = VoxCPM.from_pretrained(
-            MODEL_PATH, load_denoiser=False, optimize=OPTIMIZE, device="cuda"
-        )
+        try:
+            _model = VoxCPM.from_pretrained(
+                MODEL_PATH, load_denoiser=False, optimize=OPTIMIZE, device="cuda"
+            )
+        except Exception as error:
+            if not OPTIMIZE:
+                raise
+            # torch.compile warms up during load, so anything it cannot do on this
+            # host — a missing C compiler for Triton, an unsupported GPU — would
+            # otherwise take the whole container down at startup. Slower is better
+            # than dead.
+            print(f"torch.compile unavailable ({error}); loading uncompiled", file=sys.stderr)
+            _model = VoxCPM.from_pretrained(
+                MODEL_PATH, load_denoiser=False, optimize=False, device="cuda"
+            )
     return _model
 
 
