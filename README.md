@@ -39,6 +39,32 @@ Open http://127.0.0.1:7860. The UI submits asynchronous jobs, polls until comple
 
 Common fields are `text`, optional `reference_audio` (raw base64 or a data URL), `reference_text`, and generation settings. See `examples/` for complete payloads.
 
+## Deploying a worker
+
+Runpod's management API **cannot create a repo-linked endpoint** — the GitHub build
+integration is console-only. `create-endpoint` accepts an `image` or a `templateId`
+and nothing else, so the image has to exist before any API call can use it. Two ways
+to get one:
+
+**A. Let Runpod build it (no GHCR, no Actions).** In the Runpod console:
+Serverless → New Endpoint → *GitHub repo* → this repository → branch → set the
+Dockerfile path (e.g. `workers/voxcpm/Dockerfile`) and the build context to the
+repository root. Runpod builds and pushes to
+`registry.runpod.net/<user>-<repo>-<branch>-<dockerfile-path>:<short-sha>` and
+rebuilds on every push to that branch. Note the `voxcpm` Dockerfile is deliberately
+free of BuildKit secret mounts so this path works; `breeze` and `higgs` use
+`--mount=type=secret` for their gated weights and need path B.
+
+**B. Build in GitHub Actions, then deploy the image.** Run **Build serverless
+workers**, make the GHCR package public (or add a Runpod registry credential), then
+create the endpoint from `ghcr.io/OWNER/REPOSITORY/<worker>-worker:<sha>`. Pin the
+SHA rather than `:latest` so a tag move cannot silently change what is served.
+
+Endpoint settings that suit these workers: queue type, one GPU per worker, min 0
+workers (free when idle), max 1–2, FlashBoot on, and a container disk large enough
+for the baked weights — 60 GB for VoxCPM2, whose image carries ~5 GB of weights on
+top of the CUDA PyTorch base.
+
 ## VoxCPM2 notes
 
 - **Voice design without a reference.** Put a description in parentheses at the start of `text`, then the sentence to speak: `(A young woman, gentle and sweet voice)Hello there!`

@@ -16,9 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip install --upgrade pip \
     && pip install "voxcpm==${VOXCPM_VERSION}" "runpod>=1.7,<2" "huggingface-hub>=0.34"
 
-# openbmb/VoxCPM2 is Apache-2.0 and ungated; the token mount only covers Hub rate limits.
-RUN --mount=type=secret,id=hf_token \
-    python -c "from huggingface_hub import snapshot_download; from pathlib import Path; p=Path('/run/secrets/hf_token'); t=p.read_text().strip() if p.exists() else None; snapshot_download('openbmb/VoxCPM2', local_dir='/models/voxcpm2', token=t or None)"
+# openbmb/VoxCPM2 is Apache-2.0 and ungated, so no build secret is needed here.
+# Keeping this a plain RUN lets Runpod's console GitHub builder build the image
+# directly, which the BuildKit secret mount used by the other two workers blocks.
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2', local_dir='/models/voxcpm2')"
 
 WORKDIR /opt/worker
 COPY handler.py .
