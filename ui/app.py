@@ -19,6 +19,11 @@ JOB_EXECUTION_TIMEOUT_MS = 25 * 60 * 1000
 JOB_TTL_MS = 60 * 60 * 1000
 UI_TIMEOUT_SECONDS = 30 * 60
 MAX_REFERENCE_BYTES = 12 * 1024 * 1024
+ENDPOINT_VARS = {
+    "Breeze TTS 2": "BREEZE_ENDPOINT_ID",
+    "Higgs Audio V3": "HIGGS_ENDPOINT_ID",
+    "VoxCPM2": "VOXCPM_ENDPOINT_ID",
+}
 
 
 def _audio_base64(path: str | None) -> str | None:
@@ -41,22 +46,32 @@ def _runpod_request(method: str, url: str, **kwargs):
 
 
 def generate(model, text, reference_audio, reference_text, instruction, cfg_scale,
-             temperature, top_k, max_new_tokens, seed, progress=gr.Progress()):
-    endpoint_var = "BREEZE_ENDPOINT_ID" if model == "Breeze TTS 2" else "HIGGS_ENDPOINT_ID"
+             temperature, top_k, max_new_tokens, cfg_value, inference_timesteps,
+             normalize, max_len, seed, progress=gr.Progress()):
+    endpoint_var = ENDPOINT_VARS[model]
     endpoint = os.environ.get(endpoint_var, "").strip()
     if not endpoint:
         raise gr.Error(f"{endpoint_var} is missing from .env")
     if not text.strip():
         raise gr.Error("Enter text to synthesize")
     ref = _audio_base64(reference_audio)
-    if bool(ref) != bool(reference_text.strip()):
+    if model == "VoxCPM2":
+        # VoxCPM2 clones from audio alone; the transcript only upgrades it to ultimate cloning.
+        if reference_text.strip() and not ref:
+            raise gr.Error("Reference transcript requires reference audio")
+    elif bool(ref) != bool(reference_text.strip()):
         raise gr.Error("Reference audio and its exact transcript are required together")
 
     payload = {"text": text.strip(), "seed": int(seed)}
     if ref:
-        payload.update(reference_audio=ref, reference_text=reference_text.strip())
+        payload["reference_audio"] = ref
+        if reference_text.strip():
+            payload["reference_text"] = reference_text.strip()
     if model == "Breeze TTS 2":
         payload.update(instruction=instruction.strip() or None, cfg_scale=float(cfg_scale))
+    elif model == "VoxCPM2":
+        payload.update(cfg_value=float(cfg_value), inference_timesteps=int(inference_timesteps),
+                       normalize=bool(normalize), max_len=int(max_len))
     else:
         payload.update(temperature=float(temperature), top_k=int(top_k), max_new_tokens=int(max_new_tokens))
 
@@ -100,11 +115,13 @@ def generate(model, text, reference_audio, reference_text, instruction, cfg_scal
 
 
 with gr.Blocks(title="Serverless TTS Lab") as demo:
-    gr.Markdown("# Serverless TTS Lab\nCompare Breeze TTS 2 and Higgs Audio V3 on separate scale-to-zero Runpod endpoints.")
+    gr.Markdown("# Serverless TTS Lab\nCompare Breeze TTS 2, Higgs Audio V3, and VoxCPM2 on separate scale-to-zero Runpod endpoints.")
     with gr.Row():
-        model = gr.Radio(["Breeze TTS 2", "Higgs Audio V3"], value="Breeze TTS 2", label="Model")
+        model = gr.Radio(["Breeze TTS 2", "Higgs Audio V3", "VoxCPM2"], value="Breeze TTS 2", label="Model")
         seed = gr.Number(value=42, precision=0, label="Seed")
-    text = gr.Textbox(lines=7, label="Text", placeholder="Breeze: use (sigh). Higgs: use <|sfx:sigh|>Uh ...")
+    text = gr.Textbox(lines=7, label="Text",
+                      placeholder="Breeze: use (sigh). Higgs: use <|sfx:sigh|>Uh ... "
+                                  "VoxCPM2: lead with (a calm, low-pitched man) to design a voice.")
     with gr.Row():
         reference_audio = gr.Audio(type="filepath", sources=["upload", "microphone"], label="Reference audio (optional)")
         reference_text = gr.Textbox(lines=5, label="Exact reference transcript")
@@ -114,11 +131,16 @@ with gr.Blocks(title="Serverless TTS Lab") as demo:
         temperature = gr.Slider(0.1, 2, value=0.8, step=0.05, label="Higgs temperature")
         top_k = gr.Slider(1, 200, value=50, step=1, label="Higgs top-k")
         max_new_tokens = gr.Slider(128, 4096, value=2048, step=128, label="Higgs max new tokens")
+        cfg_value = gr.Slider(0.1, 5, value=2, step=0.1, label="VoxCPM2 CFG value")
+        inference_timesteps = gr.Slider(1, 50, value=10, step=1, label="VoxCPM2 inference timesteps")
+        max_len = gr.Slider(256, 8192, value=4096, step=256, label="VoxCPM2 max tokens")
+        normalize = gr.Checkbox(value=False, label="VoxCPM2 text normalization")
     submit = gr.Button("Generate", variant="primary")
     output_audio = gr.Audio(type="filepath", label="Generated WAV")
     status = gr.Markdown()
     submit.click(generate, [model, text, reference_audio, reference_text, instruction, cfg_scale,
-                            temperature, top_k, max_new_tokens, seed], [output_audio, status])
+                            temperature, top_k, max_new_tokens, cfg_value, inference_timesteps,
+                            normalize, max_len, seed], [output_audio, status])
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=2).launch(server_name="127.0.0.1", server_port=7860)

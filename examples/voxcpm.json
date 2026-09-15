@@ -1,0 +1,10 @@
+{
+  "input": {
+    "text": "(A young woman, warm and unhurried, with a faint smile in her voice)It is good to hear your voice again after all this time.",
+    "cfg_value": 2.0,
+    "inference_timesteps": 10,
+    "normalize": false,
+    "max_len": 4096,
+    "seed": 42
+  }
+}
