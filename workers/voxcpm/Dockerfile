@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TOKENIZERS_PARALLELISM=false \
     HF_HOME=/models/huggingface \
     VOXCPM_MODEL_PATH=/models/voxcpm2 \
-    VOXCPM_OPTIMIZE=0
+    VOXCPM_OPTIMIZE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates ffmpeg libsndfile1 \
